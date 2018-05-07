@@ -287,6 +287,33 @@ const assert = require('chai').assert;
         gql`fragment same on Same { sameQuery }`);
     });
 
+    describe('LRU cache', () => {
+      beforeEach(() => {
+        gqlRequire.resetCaches();
+        gqlRequire.setCacheOptions({
+          maxAge: 1,
+          max: 500,
+        });
+      });
+
+      it('returns different object for the same fragment after cache expires', () => {
+        const res1 = gql`fragment same on Same { sameQuery }`;
+        let counter = 1e8;
+        while(0 < counter--);
+        const res2 = gql`fragment same on Same { sameQuery }`;
+        assert.isFalse( res1 === res2);
+      });
+
+      it('can only cache for 500 items at most', () => {
+        let counter = 505;
+        while(0 < counter--) {
+          const res = gql`{ testQuery${counter} }`;
+        }
+        assert.equal( gqlRequire.getCachedItemsCount(), 500);
+      });
+    });
+    
+
     it('returns the same object for the same document with substitution', () => {
       // We know that calling `gql` on a fragment string will always return
       // the same document, so we can reuse `fragmentAst`

@@ -1,4 +1,9 @@
 var parser = require('graphql/language/parser');
+// A LRU cache with key: docString and value: graphql document
+var LRU = require("lru-cache"),
+  options = { max: 1000
+    , maxAge: 1000 * 60 * 60 * 24 }  // default 1 day
+  , docCache = LRU(options);
 
 var parse = parser.parse;
 
@@ -8,8 +13,6 @@ function normalize(string) {
   return string.replace(/[\s,]+/g, ' ').trim();
 }
 
-// A map docString -> graphql document
-var docCache = {};
 
 // A map fragmentName -> [normalized source]
 var fragmentSourceMap = {};
@@ -18,9 +21,28 @@ function cacheKeyFromLoc(loc) {
   return normalize(loc.source.body.substring(loc.start, loc.end));
 }
 
+// set cache option [https://github.com/isaacs/node-lru-cache]
+// only support max and maxAge
+function setCacheOptions(options) {
+  if(options) {
+    const { max, maxAge } = options;
+    if(max && typeof(max) === 'number') {
+      docCache.max = max;
+    }
+    if(maxAge && typeof(maxAge) === 'number') {
+      docCache.maxAge = maxAge;
+    }
+  }
+}
+
+// get cached items count
+function getCachedItemsCount() {
+  return docCache.itemCount;
+}
+
 // For testing.
 function resetCaches() {
-  docCache = {};
+  docCache.reset();
   fragmentSourceMap = {};
 }
 
@@ -121,9 +143,9 @@ function stripLoc(doc, removeLocAtThisLevel) {
 var experimentalFragmentVariables = false;
 function parseDocument(doc) {
   var cacheKey = normalize(doc);
-
-  if (docCache[cacheKey]) {
-    return docCache[cacheKey];
+  const cachedItem = docCache.get(cacheKey);
+  if (cachedItem) {
+    return cachedItem;
   }
 
   var parsed = parse(doc, { experimentalFragmentVariables: experimentalFragmentVariables });
@@ -135,7 +157,7 @@ function parseDocument(doc) {
   // existing fragments of the same name
   parsed = processFragments(parsed);
   parsed = stripLoc(parsed, false);
-  docCache[cacheKey] = parsed;
+  docCache.set(cacheKey, parsed);
 
   return parsed;
 }
@@ -173,6 +195,8 @@ function gql(/* arguments */) {
 // Support typescript, which isn't as nice as Babel about default exports
 gql.default = gql;
 gql.resetCaches = resetCaches;
+gql.getCachedItemsCount = getCachedItemsCount;
+gql.setCacheOptions = setCacheOptions;
 gql.disableFragmentWarnings = disableFragmentWarnings;
 gql.enableExperimentalFragmentVariables = enableExperimentalFragmentVariables;
 gql.disableExperimentalFragmentVariables = disableExperimentalFragmentVariables;

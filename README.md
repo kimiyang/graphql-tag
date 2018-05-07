@@ -62,7 +62,15 @@ That's where this package comes in - it lets you write your queries with [ES2015
 
 #### Caching parse results
 
-This package only has one feature - it caches previous parse results in a simple dictionary. This means that if you call the tag on the same query multiple times, it doesn't waste time parsing it again. It also means you can use `===` to compare queries to check if they are identical.
+This package only has one feature - it caches previous parse results in a LRU cache. This means that if you call the tag on the same query multiple times, it doesn't waste time parsing it again. It also means you can use `===` to compare queries to check if they are identical. By default, the max size of the cache is 1000 and the max age of the items in the LRU cache is 1 day. You can set the max size and max age for the LRU cache using setCacheOptions(options). 
+```javascript
+import gql from 'graphql-tag';
+
+gql.setCacheOptions({
+  max: 10,
+  maxAge: 100,
+})
+```
 
 ### Babel preprocessing
 
